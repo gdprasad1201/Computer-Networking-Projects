@@ -12,61 +12,59 @@ import sys
 import threading
 import datetime
 
-def handle_client(connectionSocket, addr):
-    try:
-        message = connectionSocket.recv(1024) #receives message from client
-        print( '-------the message is------- ', message)
-        
-        filename = message.split()[1]
-        print('-------the filename is------ ', filename )
-        f = open(filename[1:]) #get rid of '/' in the front of the filename
-        outputdata = f.read()
-        
-        #Send one HTTP header line into socket
-        # a bytes-like object is required, not 'str'
-        connectionSocket.send("HTTP/1.1 200 OK\r\n\r\n".encode())
-        
-        #Send the content of the requested file to the client
-        
-        print('-------length is------ ', len(outputdata))
-        for i in range(len(outputdata)):
-            connectionSocket.send(outputdata[i].encode())
-            
-        connectionSocket.send("\r\n".encode()) 
-        
-        print('File sending success')
-    except IOError:
-        #Send response message for file not found
-        connectionSocket.send("HTTP/1.1 404 Not Found\r\n\r\n".encode())
-        connectionSocket.send("<html><head></head><body><h1>404 Not Found</h1></body></html>\r\n".encode())
-        #Close client socket
-        connectionSocket.close() 
-    except IndexError:
-        #Send response message for file not found
-        connectionSocket.send("HTTP/1.1 404 Not Found\r\n\r\n".encode())
-        connectionSocket.send("<html><head></head><body><h1>404 Not Found</h1></body></html>\r\n".encode())
-        #Close client socket
-        connectionSocket.close()
-        
-    serverSocket.close() #Close the server socket
-    sys.exit() #Terminate the program after sending the corresponding data
+class ClientThread(threading.Thread):
+    def __init__(self, connectionSocket, addr):
+        threading.Thread.__init__(self)
+        self.connectionSocket = connectionSocket
+        self.addr = addr
+        print('New connection added: ', addr)
+
+    def run(self):
+        while True:
+            try:
+                message = self.connectionSocket.recv(1024)
+                print('-------the message is------- ', message)
+
+                filename = message.split()[1]
+                print('-------the filename is------ ', filename)
+
+                f = open(filename[1:]) #get rid of '/' in the front of the filename
+                outputdata = f.read()
+
+                self.connectionSocket.send("HTTP/1.1 200 OK\r\n\r\n".encode())
+                for i in range(len(outputdata)):
+                    self.connectionSocket.send(outputdata[i].encode())
+                self.connectionSocket.send("\r\n".encode()) 
+                self.connectionSocket.close() 
+
+                print('File sending success')
+            except IOError:
+                self.connectionSocket.send("HTTP/1.1 404 Not Found\r\n\r\n".encode())
+                self.connectionSocket.send("<html><head></head><body><h1>404 Not Found</h1></body></html>\r\n".encode())
+                self.connectionSocket.close()
+            except IndexError:
+                self.connectionSocket.send("HTTP/1.1 404 Not Found\r\n\r\n".encode())
+                self.connectionSocket.send("<html><head></head><body><h1>404 Not Found</h1></body></html>\r\n".encode())
+                self.connectionSocket.close()
 
 serverSocket = socket(AF_INET, SOCK_STREAM)
-
-#Prepare a sever socket
 serverPort = 8080
 serverSocket.bind(('localhost', serverPort))
-serverSocket.listen(1) #wait and listen for some client to knock on the door
+serverSocket.listen(1)
+threads = []
 
 while True:
-    #Establish the connection
     print('The server is ready to serve...')
-    connectionSocket, addr = serverSocket.accept() #the server creates a new socket dedicated to the particular client
-    print('Connection from: ', addr)
-    threading.Thread(target=handle_client, args=(connectionSocket, addr)).start()
-    #handle_client(connectionSocket, addr)
-    #connectionSocket.close() #close the connection after handling the client request
-    #print('Connection closed')
 
-serverSocket.close() #Close the server socket
-sys.exit() #Terminate the program after sending the corresponding data
+    connectionSocket, addr = serverSocket.accept()
+
+    newThread = ClientThread(connectionSocket, addr)
+    newThread.start()
+
+    threads.append(newThread)
+
+for t in threads:
+    t.join()
+
+serverSocket.close()
+sys.exit()
