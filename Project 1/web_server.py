@@ -43,6 +43,7 @@ while True:
 		connectionSocket.send("\r\n".encode()) 
 		
 		print('File sending success')
+		connectionSocket.close()
 	except IOError:
 		#Send response message for file not found
 		connectionSocket.send("\nHTTP/1.1 404 Not Found\r\n\r\n".encode())
