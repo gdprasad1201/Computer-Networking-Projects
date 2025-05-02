@@ -1,0 +1,66 @@
+#import socket module
+from socket import *
+import sys # In order to terminate the program
+
+serverSocket = socket(AF_INET, SOCK_STREAM)
+
+#Prepare a sever socket
+serverPort = 6789
+serverSocket.bind(("", serverPort)) 
+serverSocket.listen(1) #wait and listen for some client to knock on the door
+
+while True:
+	# Establish the connection
+	print('The server is ready to serve...')
+	connectionSocket, addr = serverSocket.accept() #the server creates a new socket dedicated to the particular client
+
+	try:
+		message = connectionSocket.recv(1024) #receives message from client
+
+		if not message:
+			print("No message received")
+			connectionSocket.close()
+			continue
+
+		print("The message is: ", message)
+
+		filename = message.split()[1]
+		print("The filename is: ", filename)
+
+		# if file is image
+		if filename.decode().endswith((".jpg", ".jpeg", ".png", ".gif", ".JPEG", ".JPG", ".PNG", ".GIF")):
+			f = open(filename[1:], 'rb')
+		else:
+			f = open(filename[1:], 'r') #get rid of '/' in the front of the filename
+		outputdata = f.read() #read the file
+		
+		#Send one HTTP header line into socket
+		connectionSocket.send("\nHTTP/1.1 200 OK\r\n\r\n".encode())
+		
+		#Send the content of the requested file to the client
+		print("The length of the outputdata is: ", len(outputdata))
+		
+		if isinstance(outputdata, str):
+			connectionSocket.sendall(outputdata.encode())
+		else:
+			connectionSocket.sendall(outputdata)
+
+		connectionSocket.sendall("\r\n".encode()) 
+		
+		print('File sending success')
+		connectionSocket.close()
+		# continue
+	except IOError:
+		#Send response message for file not found
+		connectionSocket.sendall("\nHTTP/1.1 404 Not Found\r\n\r\n".encode())
+		connectionSocket.sendall("<html><head></head><body><h1>404 Not Found</h1></body></html>\r\n".encode())
+
+		#Close client socket
+		connectionSocket.close()
+	except KeyboardInterrupt:
+		print("\nInterrupted by CTRL+C")
+		connectionSocket.close()
+		break 
+		
+serverSocket.close() #Close the server socket
+sys.exit() #Terminate the program after sending the corresponding data
